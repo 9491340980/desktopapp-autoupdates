@@ -1,0 +1,911 @@
+<div class="dashboard-container">
+
+ <section class="compact-control-bar">
+    <!-- Tab Group Header Integration -->
+    <div class="control-actions">
+      <button
+        mat-icon-button
+        class="action-btn search-btn"
+        (click)="toggleSearchPanel()"
+        [class.active]="isSearchExpanded"
+        matTooltip="Search services">
+        <mat-icon>{{ isSearchExpanded ? 'close' : 'search' }}</mat-icon>
+      </button>
+
+      <button
+        mat-icon-button
+        color="primary"
+        class="action-btn refresh-btn"
+        (click)="refreshAll()"
+        matTooltip="Refresh All">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  </section>
+
+   <div class="expandable-search-bar" [class.expanded]="isSearchExpanded">
+    <div class="search-content">
+      <mat-form-field class="search-field" appearance="outline">
+        <mat-label>Search services...</mat-label>
+        <input
+          matInput
+          [(ngModel)]="searchKey"
+          placeholder="Search by name, description, or server"
+          (input)="changeInput()"
+          class="expandable-search-input">
+        <mat-icon matPrefix>search</mat-icon>
+        <button
+          mat-icon-button
+          matSuffix
+          *ngIf="searchKey"
+          (click)="searchKey = ''; changeInput()"
+          matTooltip="Clear search">
+          <mat-icon>close</mat-icon>
+        </button>
+      </mat-form-field>
+
+      <button
+        mat-icon-button
+        class="close-search-btn"
+        (click)="closeSearchPanel()"
+        matTooltip="Close search">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Tabs -->
+  <mat-tab-group [(selectedIndex)]="selectedTab" (selectedIndexChange)="onTabChange($event)" class="main-tabs"
+    animationDuration="300ms">
+
+    <!-- Windows Services Tab -->
+    <mat-tab *ngIf="!checkTabMatch(hideControls.controlProperties?.allowWindowsTab)">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon mr-2">computer</mat-icon>
+        Windows Services
+        <mat-chip *ngIf="serviceError" class="error-badge blink">!</mat-chip>
+        <mat-chip *ngIf="!serviceError && services.length > 0" class="success-badge">✓</mat-chip>
+      </ng-template>
+
+      <!-- Table View -->
+      <div class="tab-content" *ngIf="viewMode === 'table'">
+        <!-- Statistics Overview Section -->
+        <!-- <section class="stats-overview">
+          <mat-card class="stat-card stat-total">
+            <mat-card-content>
+              <div class="stat-icon">
+                <mat-icon>dns</mat-icon>
+              </div>
+              <div class="stat-content">
+                <div class="stat-value">{{ statistics.totalServices }}</div>
+                <div class="stat-label">Total Services</div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card stat-running">
+            <mat-card-content>
+              <div class="stat-icon">
+                <mat-icon>check_circle</mat-icon>
+              </div>
+              <div class="stat-content">
+                <div class="stat-value">{{ statistics.runningServices }}</div>
+                <div class="stat-label">Running</div>
+                <div class="stat-percentage">{{ getPercentage(statistics.runningServices) }}%</div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card stat-stopped">
+            <mat-card-content>
+              <div class="stat-icon">
+                <mat-icon>cancel</mat-icon>
+              </div>
+              <div class="stat-content">
+                <div class="stat-value">{{ statistics.stoppedServices }}</div>
+                <div class="stat-label">Stopped</div>
+                <div class="stat-percentage">{{ getPercentage(statistics.stoppedServices) }}%</div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card stat-warning">
+            <mat-card-content>
+              <div class="stat-icon">
+                <mat-icon>warning</mat-icon>
+              </div>
+              <div class="stat-content">
+                <div class="stat-value">{{ statistics.warningServices }}</div>
+                <div class="stat-label">Issues</div>
+                <div class="stat-percentage">{{ getPercentage(statistics.warningServices) }}%</div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </section> -->
+        <div class="table-container mat-elevation-z2">
+          <table mat-table [dataSource]="getFilteredServices()" class="services-table">
+
+            <!-- Service Name Column -->
+            <ng-container matColumnDef="serviceName">
+              <th mat-header-cell *matHeaderCellDef>
+                {{ hideControls.controlProperties?.windowsServices?.serviceLbl || 'Service Name' }}
+              </th>
+              <td mat-cell *matCellDef="let service">
+                <div class="service-name-cell">
+                  <mat-icon class="service-icon">settings</mat-icon>
+                  <strong>{{ service.ServiceName }}</strong>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Status Column -->
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>
+                {{ hideControls.controlProperties?.windowsServices?.statusLbl || 'Status' }}
+              </th>
+              <td mat-cell *matCellDef="let service">
+                <button mat-raised-button [color]="service.Status === commonEnum.Running ? 'success' : 'warn'"
+                  [disabled]="!checkStatusAccessMatch(hideControls.controlProperties?.statusAccess, service.ServiceName) || isServiceLoading(service.ServiceName)"
+                  (click)="startOrStop(service.ServiceName)" class="status-button">
+
+                  <mat-spinner *ngIf="isServiceLoading(service.ServiceName)" diameter="16"
+                    style="display: inline-block; margin-right: 8px;">
+                  </mat-spinner>
+
+                  <mat-icon *ngIf="!isServiceLoading(service.ServiceName)">
+                    {{ service.Status === commonEnum.Running ? 'play_arrow' : 'stop' }}
+                  </mat-icon>
+
+                  {{ getServiceButtonText(service) }}
+                </button>
+              </td>
+            </ng-container>
+
+            <!-- Server Name Column -->
+            <ng-container matColumnDef="serverName">
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.serverName)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.windowsServices?.serverNameLbl || 'Server Name' }}
+                </th>
+              </ng-container>
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.serverName)">
+                <td mat-cell *matCellDef="let service">
+                  <mat-chip class="server-chip">{{ service.ServerName }}</mat-chip>
+                </td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Logs Column -->
+            <ng-container matColumnDef="logs">
+              <ng-container *ngIf="checkLogsMatch(hideControls.controlProperties?.logs)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.windowsServices?.logsLbl || 'Logs' }}
+                </th>
+              </ng-container>
+              <ng-container *ngIf="checkLogsMatch(hideControls.controlProperties?.logs)">
+                <td mat-cell *matCellDef="let service">
+                  <button mat-button color="blue" (click)="processConfirm(service.ServiceName, service.ServerName)">
+                    <mat-icon>description</mat-icon>
+                    View Logs
+                  </button>
+                </td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Description Column -->
+            <ng-container matColumnDef="description">
+              <ng-container *ngIf="checkDescriptionMatch(hideControls.controlProperties?.description)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.windowsServices?.descriptionLbl || 'Description' }}
+                </th>
+              </ng-container>
+              <ng-container *ngIf="checkDescriptionMatch(hideControls.controlProperties?.description)">
+                <td mat-cell *matCellDef="let service">
+                  {{ service.Description }}
+                </td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Memory Utilization Column -->
+            <ng-container matColumnDef="memoryUtilization">
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.memoryUtilization)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.windowsServices?.memoryUtilizationLbl || 'Memory Utilization' }}
+                </th>
+              </ng-container>
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.memoryUtilization)">
+                <td mat-cell *matCellDef="let service">
+                  <span class="metric-value">{{ service.MemoryUtilization }} MB</span>
+                </td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Thread Count Column -->
+            <ng-container matColumnDef="threadCount">
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.ThreadCount)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.windowsServices?.threadCountLbl || 'Thread Count' }}
+                </th>
+              </ng-container>
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.ThreadCount)">
+                <td mat-cell *matCellDef="let service">
+                  <span class="metric-value">{{ service.ThreadCount }}</span>
+                </td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Process CPU Utilization Column -->
+            <ng-container matColumnDef="processUtilization">
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.processUtilization)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.windowsServices?.processUtilizationLbl || 'Process CPU' }}
+                </th>
+              </ng-container>
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.processUtilization)">
+                <td mat-cell *matCellDef="let service">
+                  <div class="cpu-progress">
+                    <mat-progress-bar mode="determinate" [value]="service.CPUUtilization"
+                      [ngClass]="getCpuClass(service.CPUUtilization)">
+                    </mat-progress-bar>
+                    <span class="cpu-value">{{ service.CPUUtilization }}%</span>
+                  </div>
+                </td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Total CPU Utilization Column -->
+            <ng-container matColumnDef="cpuUtilization">
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.CpuUtilization)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.windowsServices?.cpuUtilizationLbl || 'CPU Utilization' }}
+                </th>
+              </ng-container>
+              <ng-container *ngIf="checkRolesMatch(hideControls.controlProperties?.CpuUtilization)">
+                <td mat-cell *matCellDef="let service">
+                  <div class="cpu-progress">
+                    <mat-progress-bar mode="determinate" [value]="service.Total_CPU"
+                      [ngClass]="getCpuClass(service.Total_CPU)">
+                    </mat-progress-bar>
+                    <span class="cpu-value">{{ service.Total_CPU }}%</span>
+                  </div>
+                </td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Header Row - Always shows -->
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+
+            <!-- Data Rows - Only shows when no error -->
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+              [class.error-row]="row.Status !== commonEnum.Running"></tr>
+          </table>
+
+          <!-- API Error State - Shows after headers when error occurs -->
+          <div class="api-error-container" *ngIf="apiErrors.windowsServices">
+            <mat-card class="error-card">
+              <mat-card-content>
+                <div class="error-content">
+                  <mat-icon class="error-icon">cloud_off</mat-icon>
+                  <h3>Unable to Load Data</h3>
+                  <p>{{ errorMessages.windowsServices }}</p>
+                  <div class="error-actions">
+                    <button mat-raised-button color="primary" (click)="retryLoadData('windowsServices')">
+                      <mat-icon>refresh</mat-icon>
+                      Retry Connection
+                    </button>
+                  </div>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+
+          <!-- Empty State - Only shows when no error and no data -->
+          <div class="empty-state" *ngIf="!apiErrors.windowsServices && getFilteredServices().length === 0">
+            <mat-icon>inbox</mat-icon>
+            <p>No services found</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card View -->
+      <div class="tab-content cards-view" *ngIf="viewMode === 'cards'">
+        <div class="cards-grid">
+          <mat-card *ngFor="let service of getFilteredServices()" class="service-card"
+            [class.error-card]="service.Status !== commonEnum.Running">
+            <mat-card-header>
+              <mat-icon mat-card-avatar>settings</mat-icon>
+              <mat-card-title>{{ service.ServiceName }}</mat-card-title>
+              <mat-card-subtitle>{{ service.Description }}</mat-card-subtitle>
+            </mat-card-header>
+
+            <mat-card-content>
+              <div class="card-metrics">
+                <div class="metric-row">
+                  <span class="metric-label">Server:</span>
+                  <mat-chip class="metric-chip">{{ service.ServerName }}</mat-chip>
+                </div>
+                <div class="metric-row">
+                  <span class="metric-label">Memory Utilization:</span>
+                  <span class="metric-value">{{ service.MemoryUtilization }} MB</span>
+                </div>
+                <div class="metric-row">
+                  <span class="metric-label">Thread Count:</span>
+                  <span class="metric-value">{{ service.ThreadCount }}</span>
+                </div>
+                <div class="metric-row">
+                  <span class="metric-label">Process CPU:</span>
+                  <div class="cpu-progress">
+                    <mat-progress-bar mode="determinate" [value]="service.CPUUtilization"
+                      [ngClass]="getCpuClass(service.CPUUtilization)">
+                    </mat-progress-bar>
+                    <span class="cpu-value">{{ service.CPUUtilization }}%</span>
+                  </div>
+                </div>
+                <div class="metric-row">
+                  <span class="metric-label">CPU Utilization:</span>
+                  <div class="cpu-progress">
+                    <mat-progress-bar mode="determinate" [value]="service.Total_CPU"
+                      [ngClass]="getCpuClass(service.Total_CPU)">
+                    </mat-progress-bar>
+                    <span class="cpu-value">{{ service.Total_CPU }}%</span>
+                  </div>
+                </div>
+              </div>
+            </mat-card-content>
+
+            <mat-card-actions>
+              <button mat-raised-button [color]="service.Status === commonEnum.Running ? 'primary' : 'warn'"
+                [disabled]="!checkStatusAccessMatch(hideControls.controlProperties?.statusAccess, service.ServiceName) || isServiceLoading(service.ServiceName)"
+                (click)="startOrStop(service.ServiceName)">
+
+                <mat-spinner *ngIf="isServiceLoading(service.ServiceName)" diameter="16"
+                  style="display: inline-block; margin-right: 8px;">
+                </mat-spinner>
+
+                <mat-icon *ngIf="!isServiceLoading(service.ServiceName)">
+                  {{ service.Status === commonEnum.Running ? 'play_arrow' : 'stop' }}
+                </mat-icon>
+
+                {{ getServiceButtonText(service) }}
+              </button>
+
+              <button mat-button color="accent" (click)="processConfirm(service.ServiceName, service.ServerName)">
+                <mat-icon>description</mat-icon>
+                Logs
+              </button>
+            </mat-card-actions>
+          </mat-card>
+        </div>
+
+        <!-- Error state for card view -->
+        <div class="api-error-container" *ngIf="apiErrors.windowsServices">
+          <mat-card class="error-card">
+            <mat-card-content>
+              <div class="error-content">
+                <mat-icon class="error-icon">cloud_off</mat-icon>
+                <h3>Unable to Load Data</h3>
+                <p>{{ errorMessages.windowsServices }}</p>
+                <div class="error-actions">
+                  <button mat-raised-button color="primary" (click)="retryLoadData('windowsServices')">
+                    <mat-icon>refresh</mat-icon>
+                    Retry Connection
+                  </button>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- Task Scheduler Tab -->
+    <mat-tab *ngIf="!checkTabMatch(hideControls.controlProperties?.allowTaskScheTab)">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon mr-2">schedule</mat-icon>
+        Task Scheduler
+        <mat-chip *ngIf="serviceErrorTaskList" class="error-badge blink">!</mat-chip>
+        <mat-chip *ngIf="!serviceErrorTaskList && tasks.length > 0" class="success-badge">✓</mat-chip>
+      </ng-template>
+
+      <div class="tab-content">
+        <div class="table-container mat-elevation-z2">
+          <table mat-table [dataSource]="getFilteredTasks()" class="services-table">
+
+            <!-- Task Name Column -->
+            <ng-container matColumnDef="taskName">
+              <th mat-header-cell *matHeaderCellDef>
+                {{ hideControls.controlProperties?.taskScheduler?.taskNameLbl || 'Task Name' }}
+              </th>
+              <td mat-cell *matCellDef="let task">
+                <div class="service-name-cell">
+                  <mat-icon class="service-icon">schedule</mat-icon>
+                  <strong>{{ task.TaskName }}</strong>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Server Name Column -->
+            <ng-container matColumnDef="serverName">
+              <ng-container
+                *ngIf="checkTaskServerNameShow(hideControls.controlProperties?.taskScheduler?.taskServerName)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.taskScheduler?.serverNameLbl || 'Server Name' }}
+                </th>
+              </ng-container>
+              <ng-container
+                *ngIf="checkTaskServerNameShow(hideControls.controlProperties?.taskScheduler?.taskServerName)">
+                <td mat-cell *matCellDef="let task">
+                  <mat-chip class="server-chip" *ngIf="getTaskServerName(task.TaskName)">
+                    {{ getTaskServerName(task.TaskName) }}
+                  </mat-chip>
+                  <span *ngIf="!getTaskServerName(task.TaskName)" class="no-server">-</span>
+                </td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Description Column -->
+            <ng-container matColumnDef="description">
+              <th mat-header-cell *matHeaderCellDef>
+                {{ hideControls.controlProperties?.taskScheduler?.desctiptionLbl || 'Description' }}
+              </th>
+              <td mat-cell *matCellDef="let task">{{ task.Description }}</td>
+            </ng-container>
+
+            <!-- Last Run Time Column -->
+            <ng-container matColumnDef="lastRunTime">
+              <ng-container
+                *ngIf="checkLastRunTimeShow(hideControls.controlProperties?.taskScheduler?.lastRunTimeShow)">
+                <th mat-header-cell *matHeaderCellDef>
+                  {{ hideControls.controlProperties?.taskScheduler?.lastRunTimeLbl || 'Last Run Time' }}
+                </th>
+              </ng-container>
+              <ng-container
+                *ngIf="checkLastRunTimeShow(hideControls.controlProperties?.taskScheduler?.lastRunTimeShow)">
+                <td mat-cell *matCellDef="let task">{{ task.LastRunTime }}</td>
+              </ng-container>
+            </ng-container>
+
+            <!-- Status Column -->
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>
+                {{ hideControls.controlProperties?.taskScheduler?.statusLbl || 'Status' }}
+              </th>
+              <td mat-cell *matCellDef="let task">
+                <button mat-raised-button [color]="task.Status === commonEnum.Running ? 'success' : 'warn'"
+                  [disabled]="isTaskLoading(task.TaskName)" (click)="startOrStopTask(task.TaskName)"
+                  class="status-button">
+
+                  <mat-spinner *ngIf="isTaskLoading(task.TaskName)" diameter="16"
+                    style="display: inline-block; margin-right: 8px;">
+                  </mat-spinner>
+
+                  <mat-icon *ngIf="!isTaskLoading(task.TaskName)">
+                    {{ task.Status === commonEnum.Running ? 'play_arrow' : 'stop' }}
+                  </mat-icon>
+
+                  {{ getTaskButtonText(task) }}
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="taskSchedulerDisplayColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: taskSchedulerDisplayColumns;"
+              [class.error-row]="row.Status !== commonEnum.Running"></tr>
+          </table>
+
+          <!-- API Error State -->
+          <div class="api-error-container" *ngIf="apiErrors.taskScheduler">
+            <mat-card class="error-card">
+              <mat-card-content>
+                <div class="error-content">
+                  <mat-icon class="error-icon">cloud_off</mat-icon>
+                  <h3>Unable to Load Data</h3>
+                  <p>{{ errorMessages.taskScheduler }}</p>
+                  <div class="error-actions">
+                    <button mat-raised-button color="primary" (click)="retryLoadData('taskScheduler')">
+                      <mat-icon>refresh</mat-icon>
+                      Retry Connection
+                    </button>
+                  </div>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+
+          <div class="empty-state" *ngIf="!apiErrors.taskScheduler && getFilteredTasks().length === 0">
+            <mat-icon>inbox</mat-icon>
+            <p>No tasks found</p>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- API Services Tab -->
+    <mat-tab *ngIf="!checkTabMatch(hideControls.controlProperties?.allowApiTab)">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon mr-2">api</mat-icon>
+        Web APIs
+        <mat-chip *ngIf="serviceErrorApilist" class="error-badge blink">!</mat-chip>
+        <mat-chip *ngIf="!serviceErrorApilist && groupedApiServices.length > 0" class="success-badge">✓</mat-chip>
+      </ng-template>
+
+      <div class="tab-content">
+        <!-- Show API Services Grid when no error -->
+        <div class="api-services-grid" *ngIf="!apiErrors.apiServices">
+          <mat-card *ngFor="let serverGroup of groupedApiServices" class="server-group-card"
+            [class.has-errors]="serverGroup.hasError">
+
+            <mat-card-header class="server-header">
+              <div class="server-header-content">
+                <mat-icon class="server-icon">dns</mat-icon>
+                <h3 class="server-name">{{ serverGroup.serverName }}</h3>
+              </div>
+            </mat-card-header>
+
+            <mat-card-content class="services-list">
+              <div *ngFor="let service of serverGroup.services" class="service-row"
+                [class.service-error]="service.status !== 'Running'">
+                <div class="service-info">
+                  <span class="service-name">{{ service.name }}</span>
+                </div>
+                <div class="service-status">
+                  <mat-icon class="status-icon" [class.status-running]="service.status === 'Running'"
+                    [class.status-error]="service.status !== 'Running'">
+                    {{ service.status === 'Running' ? 'check_circle' : 'cancel' }}
+                  </mat-icon>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <!-- API Error State -->
+        <div class="api-error-container" *ngIf="apiErrors.apiServices">
+          <mat-card class="error-card">
+            <mat-card-content>
+              <div class="error-content">
+                <mat-icon class="error-icon">cloud_off</mat-icon>
+                <h3>Unable to Load Data</h3>
+                <p>{{ errorMessages.apiServices }}</p>
+                <div class="error-actions">
+                  <button mat-raised-button color="primary" (click)="retryLoadData('apiServices')">
+                    <mat-icon>refresh</mat-icon>
+                    Retry Connection
+                  </button>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" *ngIf="!apiErrors.apiServices && groupedApiServices.length === 0">
+          <mat-icon>inbox</mat-icon>
+          <p>No Web APIs found</p>
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- Queue Alerts Tab -->
+    <mat-tab *ngIf="checkTabMatch(hideControls.controlProperties?.allowQueueTab)">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon mr-2">queue</mat-icon>
+        Queue Alerts
+        <mat-chip *ngIf="serviceErrorQueuelist" class="error-badge blink">!</mat-chip>
+        <mat-chip *ngIf="!serviceErrorQueuelist && queService.length > 0" class="success-badge">✓</mat-chip>
+      </ng-template>
+
+      <div class="tab-content">
+        <!-- ✅ NEW: Nested Tab Group for Services and Propagators -->
+        <mat-tab-group class="nested-tabs">
+
+          <!-- Queue Services Subtab -->
+          <mat-tab *ngIf="checkTabMatch(hideControls.controlProperties?.allowQueueservicesTab)">
+            <ng-template mat-tab-label>
+              Queue Services
+              <mat-chip *ngIf="serviceErrorDbAlertslist1" class="error-badge">!</mat-chip>
+              <mat-chip *ngIf="!serviceErrorDbAlertslist1 && queService1.length > 0" class="success-badge">✓</mat-chip>
+            </ng-template>
+
+            <div class="table-container mat-elevation-z2">
+              <div class="queue-alerts-table">
+                <!-- Table Header -->
+                <div class="queue-header-row">
+                  <div class="queue-header-cell service-name-col">Service Name</div>
+                  <div class="queue-header-cell description-col">Description</div>
+                  <div class="queue-header-cell metric-col">Last Hour</div>
+                  <div class="queue-header-cell metric-col">New</div>
+                  <div class="queue-header-cell metric-col">Inprocess</div>
+                  <div class="queue-header-cell metric-col">Error</div>
+                  <div class="queue-header-cell metric-col">Completed</div>
+                </div>
+
+                <!-- Table Rows -->
+                <div class="queue-alert-row" *ngFor="let queue of getFilteredQueueServices()"
+                  [class.queue-error]="queue.Color !== commonEnum.GREEN"
+                  [class.queue-success]="queue.Color === commonEnum.GREEN">
+
+                  <div class="queue-cell service-name-col">
+                    <div class="queue-name">{{ queue.QueueName }}</div>
+                    <div class="queue-meta">
+                      <span *ngIf="checkRolesMatch(hideControls.controlProperties?.Threshold)">
+                        Threshold: {{ queue.Threshold }}
+                      </span>
+                      <span>Last 15 min: {{ queue.LastRun }}</span>
+                    </div>
+                  </div>
+
+                  <div class="queue-cell description-col">
+                    {{ queue.QueueDesc }}
+                  </div>
+
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value">{{ queue.LastHour }}</span>
+                  </div>
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value">{{ queue.New }}</span>
+                  </div>
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value">{{ queue.Inprocess }}</span>
+                  </div>
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value metric-error">{{ queue.Error }}</span>
+                  </div>
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value metric-success">{{ queue.Completed }}</span>
+                  </div>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state" *ngIf="!apiErrors.queueAlerts && getFilteredQueueServices().length === 0">
+                  <mat-icon>inbox</mat-icon>
+                  <p>No queue services found</p>
+                </div>
+              </div>
+
+              <!-- API Error State -->
+              <div class="api-error-container" *ngIf="apiErrors.queueAlerts">
+                <mat-card class="error-card">
+                  <mat-card-content>
+                    <div class="error-content">
+                      <mat-icon class="error-icon">cloud_off</mat-icon>
+                      <h3>Unable to Load Data</h3>
+                      <p>{{ errorMessages.queueAlerts }}</p>
+                      <div class="error-actions">
+                        <button mat-raised-button color="primary" (click)="retryLoadData('queueAlerts')">
+                          <mat-icon>refresh</mat-icon>
+                          Retry Connection
+                        </button>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              </div>
+            </div>
+          </mat-tab>
+
+          <!-- Queue Propagators Subtab -->
+          <mat-tab *ngIf="checkTabMatch(hideControls.controlProperties?.allowQueuepropogatorsTab)">
+            <ng-template mat-tab-label>
+              Queue Propagators
+              <mat-chip *ngIf="serviceErrorDbAlertslist" class="error-badge">!</mat-chip>
+              <mat-chip *ngIf="!serviceErrorDbAlertslist && PropService.length > 0" class="success-badge">✓</mat-chip>
+            </ng-template>
+
+            <div class="table-container mat-elevation-z2">
+              <div class="queue-alerts-table">
+                <!-- Table Header -->
+                <div class="queue-header-row">
+                  <div class="queue-header-cell service-name-col">Service Name</div>
+                  <div class="queue-header-cell description-col">Description</div>
+                  <div class="queue-header-cell metric-col">Last Hour</div>
+                  <div class="queue-header-cell metric-col">New</div>
+                  <div class="queue-header-cell metric-col">Inprocess</div>
+                  <div class="queue-header-cell metric-col">Error</div>
+                  <div class="queue-header-cell metric-col">Completed</div>
+                </div>
+
+                <!-- Table Rows -->
+                <div class="queue-alert-row" *ngFor="let queue of getFilteredQueuePropagators()"
+                  [class.queue-error]="queue.Color !== commonEnum.GREEN"
+                  [class.queue-success]="queue.Color === commonEnum.GREEN">
+
+                  <div class="queue-cell service-name-col">
+                    <div class="queue-name">{{ queue.QueueName }}</div>
+                    <div class="queue-meta">
+                      <span *ngIf="checkRolesMatch(hideControls.controlProperties?.Threshold)">
+                        Threshold: {{ queue.Threshold }}
+                      </span>
+                      <span>Last 15 min: {{ queue.LastRun }}</span>
+                    </div>
+                  </div>
+
+                  <div class="queue-cell description-col">
+                    {{ queue.QueueDesc }}
+                  </div>
+
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value">{{ queue.LastHour }}</span>
+                  </div>
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value">{{ queue.New }}</span>
+                  </div>
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value">{{ queue.Inprocess }}</span>
+                  </div>
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value metric-error">{{ queue.Error }}</span>
+                  </div>
+                  <div class="queue-cell metric-col">
+                    <span class="metric-value metric-success">{{ queue.Completed }}</span>
+                  </div>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state" *ngIf="!apiErrors.queueAlerts && getFilteredQueuePropagators().length === 0">
+                  <mat-icon>inbox</mat-icon>
+                  <p>No queue propagators found</p>
+                </div>
+              </div>
+
+              <!-- API Error State -->
+              <div class="api-error-container" *ngIf="apiErrors.queueAlerts">
+                <mat-card class="error-card">
+                  <mat-card-content>
+                    <div class="error-content">
+                      <mat-icon class="error-icon">cloud_off</mat-icon>
+                      <h3>Unable to Load Data</h3>
+                      <p>{{ errorMessages.queueAlerts }}</p>
+                      <div class="error-actions">
+                        <button mat-raised-button color="primary" (click)="retryLoadData('queueAlerts')">
+                          <mat-icon>refresh</mat-icon>
+                          Retry Connection
+                        </button>
+                      </div>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              </div>
+            </div>
+          </mat-tab>
+
+        </mat-tab-group>
+      </div>
+    </mat-tab>
+
+    <!-- DB Jobs Tab -->
+    <mat-tab *ngIf="checkTabMatch(hideControls.controlProperties?.dbJobs)">
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon mr-2">storage</mat-icon>
+        DB Jobs
+        <mat-chip *ngIf="dbJoblist" class="error-badge blink">!</mat-chip>
+        <mat-chip *ngIf="!dbJoblist && dbJobsList.length > 0" class="success-badge">✓</mat-chip>
+      </ng-template>
+
+      <div class="tab-content">
+        <!-- Schema Filter -->
+        <div class="schema-filter" *ngIf="!apiErrors.dbJobs">
+          <mat-form-field appearance="outline">
+            <mat-label>Select Schema</mat-label>
+            <mat-select [(ngModel)]="selectedSchema" (selectionChange)="onSchima($event.value)">
+              <mat-option *ngFor="let schema of schemaList" [value]="schema.Id">
+                {{ schema.Text }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="table-container mat-elevation-z2">
+          <table mat-table [dataSource]="dbJobsList" class="services-table">
+
+            <!-- Id Column -->
+            <ng-container matColumnDef="Id">
+              <th mat-header-cell *matHeaderCellDef>Id</th>
+              <td mat-cell *matCellDef="let job">{{ job.Id }}</td>
+            </ng-container>
+
+            <!-- Name Column -->
+            <ng-container matColumnDef="Name">
+              <th mat-header-cell *matHeaderCellDef>Name</th>
+              <td mat-cell *matCellDef="let job">
+                <div class="service-name-cell">
+                  <strong>{{ job.Name }}</strong>
+                </div>
+              </td>
+            </ng-container>
+
+            <!-- Schema Column -->
+            <ng-container matColumnDef="Schema">
+              <th mat-header-cell *matHeaderCellDef>Schema</th>
+              <td mat-cell *matCellDef="let job">{{ job.Schema }}</td>
+            </ng-container>
+
+            <!-- Broken Column -->
+            <ng-container matColumnDef="Broken">
+              <th mat-header-cell *matHeaderCellDef>Broken</th>
+              <td mat-cell *matCellDef="let job">
+                <mat-chip [color]="job.Broken === 'Y' ? 'warn' : 'primary'" selected>
+                  {{ job.Broken }}
+                </mat-chip>
+              </td>
+            </ng-container>
+
+            <!-- Active Column -->
+            <ng-container matColumnDef="Active">
+              <th mat-header-cell *matHeaderCellDef>Active</th>
+              <td mat-cell *matCellDef="let job">
+                <mat-chip [color]="job.Active === 'Y' ? 'accent' : ''" selected>
+                  {{ job.Active || 'N' }}
+                </mat-chip>
+              </td>
+            </ng-container>
+
+            <!-- LastRun Column -->
+            <ng-container matColumnDef="LastRun">
+              <th mat-header-cell *matHeaderCellDef>LastRun</th>
+              <td mat-cell *matCellDef="let job">{{ job.LastRun }}</td>
+            </ng-container>
+
+            <!-- NextRun Column -->
+            <ng-container matColumnDef="NextRun">
+              <th mat-header-cell *matHeaderCellDef>NextRun</th>
+              <td mat-cell *matCellDef="let job">{{ job.NextRun }}</td>
+            </ng-container>
+
+            <!-- Schedule Column -->
+            <ng-container matColumnDef="Schedule">
+              <th mat-header-cell *matHeaderCellDef>Schedule</th>
+              <td mat-cell *matCellDef="let job">{{ job.Schedule }}</td>
+            </ng-container>
+
+            <!-- Failures Column -->
+            <ng-container matColumnDef="Failures">
+              <th mat-header-cell *matHeaderCellDef>Failures</th>
+              <td mat-cell *matCellDef="let job">
+                <mat-chip [color]="(job.Failures || 0) > 0 ? 'warn' : ''" selected>
+                  {{ job.Failures || 0 }}
+                </mat-chip>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="dbJobsDisplayColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: dbJobsDisplayColumns;" [class.error-row]="row.Broken === 'Y'">
+            </tr>
+          </table>
+
+          <!-- API Error State -->
+          <div class="api-error-container" *ngIf="apiErrors.dbJobs">
+            <mat-card class="error-card">
+              <mat-card-content>
+                <div class="error-content">
+                  <mat-icon class="error-icon">cloud_off</mat-icon>
+                  <h3>Unable to Load Data</h3>
+                  <p>{{ errorMessages.dbJobs }}</p>
+                  <div class="error-actions">
+                    <button mat-raised-button color="primary" (click)="retryLoadData('dbJobs')">
+                      <mat-icon>refresh</mat-icon>
+                      Retry Connection
+                    </button>
+                  </div>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          </div>
+
+          <div class="empty-state" *ngIf="!apiErrors.dbJobs && dbJobsList.length === 0">
+            <mat-icon>inbox</mat-icon>
+            <p>No DB jobs found</p>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" *ngIf="loading">
+    <mat-spinner></mat-spinner>
+    <p>Processing...</p>
+  </div>
+
+</div>
